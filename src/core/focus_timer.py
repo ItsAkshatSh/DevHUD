@@ -3,23 +3,18 @@ import time
 from PyQt5.QtCore import QObject, pyqtSignal
 
 class FocusTimer(QObject):
-    time_updated = pyqtSignal(int)
+    time_updated = pyqtSignal(int) 
     timer_completed = pyqtSignal(str) 
     state_changed = pyqtSignal(str)  
-    
     def __init__(self):
         super().__init__()
         self.running = False
         self.paused = False
         self.timer_thread = None
         self.remaining_seconds = 0
-        
-        #minute to seconds
-        self.work_duration = 25 * 60  
+        self.work_duration = 25 * 60 
         self.break_duration = 5 * 60  
-        self.long_break_duration = 15 * 60
-        #minute to seconds  
-        
+        self.long_break_duration = 15 * 60 
         self.pomodoros_until_long_break = 4
         self.current_pomodoro_count = 0
         self.is_break = False
@@ -78,22 +73,24 @@ class FocusTimer(QObject):
                 else:
                     self._handle_timer_completion()
             time.sleep(1)
-    
-    #break system   
+            
     def _handle_timer_completion(self):
         """Handle timer completion and switch between work/break periods"""
         if not self.is_break:
+            # Work period completed
             self.current_pomodoro_count += 1
             self.is_break = True
             
             if self.current_pomodoro_count % self.pomodoros_until_long_break == 0:
+                # Long break
                 self.remaining_seconds = self.long_break_duration
                 self.timer_completed.emit("long_break")
             else:
+                # Regular break
                 self.remaining_seconds = self.break_duration
                 self.timer_completed.emit("break")
         else:
-            
+            # Break completed
             self.is_break = False
             self.remaining_seconds = self.work_duration
             self.timer_completed.emit("work")
