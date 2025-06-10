@@ -139,6 +139,9 @@ class MainWindow(QMainWindow):
             self.github_widget.show()
             self.widgets.append(self.github_widget)
             
+        # Start GitHub monitoring after all widgets are initialized
+        self.github_manager.start_monitoring()
+        
     def setup_system_tray(self):
         """Setup system tray icon and menu"""
         self.tray_icon = QSystemTrayIcon(self)
@@ -301,38 +304,14 @@ class MainWindow(QMainWindow):
         event.ignore()  # Prevent closing
         self.hide_all()  # Hide instead of close 
 
-    def on_settings_changed(self, settings):
-        """Handle settings changes from the settings widget"""
-        # Update general settings
-        self.settings.set('start_minimized', settings['general']['start_minimized'])
-        self.settings.set('start_with_system', settings['general']['start_with_system'])
-        self.settings.set('stats_interval', settings['general']['stats_interval'])
+    def on_settings_changed(self):
+        """Handle settings changed signal"""
+        # Apply theme and opacity changes
+        self.apply_theme()
         
-        # Update appearance settings
-        theme = settings['appearance']['theme'].lower()  # Ensure lowercase
-        self.settings.set('theme', theme)
-        opacity = settings['appearance']['opacity'] / 100.0  # Convert percentage to decimal
-        self.settings.set('opacity', opacity)
-        
-        # Update keybinds
-        self.settings.set_keybind('toggle_visibility', settings['keybinds']['toggle_visibility'])
-        self.settings.set_keybind('focus_timer', settings['keybinds']['focus_timer'])
-        self.settings.set_keybind('clipboard', settings['keybinds']['clipboard'])
-        
-        # Update GitHub settings
-        self.settings.set('github_token', settings['github']['token'])
-        self.settings.set('github_username', settings['github']['username'])
-        
-        # Apply updated settings
-        self.theme_engine.apply_theme(theme)  # Directly apply theme
-        self.setWindowOpacity(opacity)  # Set main window opacity
-        
-        # Apply opacity and theme to all widgets
-        for widget in self.widgets:
-            if widget != self.settings_widget:  # Don't set opacity for settings widget
-                widget.setWindowOpacity(opacity)
-                widget.apply_theme()  # Apply theme to each widget
-        
-        # Refresh GitHub widget if it exists
-        if hasattr(self, 'github_widget'):
-            self.github_widget.refresh_prs()  # Use correct method name 
+        # Apply always on top setting
+        if self.settings.get('always_on_top', False):
+            self.setWindowFlags(self.windowFlags() | Qt.WindowStaysOnTopHint)
+        else:
+            self.setWindowFlags(self.windowFlags() & ~Qt.WindowStaysOnTopHint)
+        self.show() # Re-show window to apply flags 

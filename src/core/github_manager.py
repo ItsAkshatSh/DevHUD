@@ -6,7 +6,8 @@ import time
 class GitHubManager(QObject):
     activity_updated = pyqtSignal(list) 
     issues_updated = pyqtSignal(list)    
-    prs_updated = pyqtSignal(list)    
+    prs_updated = pyqtSignal(list)
+    repos_updated = pyqtSignal(int)  # Changed to emit just the count
     
     def __init__(self, settings):
         super().__init__()
@@ -15,7 +16,7 @@ class GitHubManager(QObject):
         self.user = None
         self.running = False
         self.update_thread = None
-        self.update_interval = 300  
+        self.update_interval = 300  # 5 minutes
         
         self.init_github()
         
@@ -53,6 +54,7 @@ class GitHubManager(QObject):
                 self.update_activity()
                 self.update_issues()
                 self.update_prs()
+                self.update_repos()  # Add repository updates
             except Exception as e:
                 print(f"Error updating GitHub data: {e}")
             time.sleep(self.update_interval)
@@ -98,27 +100,45 @@ class GitHubManager(QObject):
             print(f"Error updating issues: {e}")
             
     def update_prs(self):
-        """Update pull requests list"""
+        """Update pull requests"""
         if not self.user:
             return
             
         try:
-            pulls = self.user.get_pulls(state='open')
+            # Use search issues endpoint to find PRs with proper query format
+            query = f"is:pr author:{self.user.login}"
+            print(f"Searching PRs with query: {query}")
+            prs = self.github.search_issues(query=query)
+            
+            # Convert to list of PR objects
             pr_list = []
-            for pr in pulls:
-                pr_list.append({
-                    'number': pr.number,
-                    'title': pr.title,
-                    'repo': pr.repository.name,
-                    'created_at': pr.created_at,
-                    'base': pr.base.ref,
-                    'head': pr.head.ref,
-                    'comments': pr.comments,
-                    'review_comments': pr.review_comments
-                })
+            for pr in prs:
+                if pr.pull_request:  # Ensure it's a PR
+                    pr_list.append({
+                        'number': pr.number,
+                        'title': pr.title,
+                        'repo': pr.repository.name,
+                        'created_at': pr.created_at,
+                        'state': pr.state,
+                        'updated_at': pr.updated_at
+                    })
+            
+            print(f"Found {len(pr_list)} PRs")
             self.prs_updated.emit(pr_list)
         except Exception as e:
             print(f"Error updating PRs: {e}")
+
+    def update_repos(self):
+        """Update repository count"""
+        if not self.user:
+            return
+            
+        try:
+            repos = self.user.get_repos()
+            repo_count = sum(1 for _ in repos)  # Count total repositories
+            self.repos_updated.emit(repo_count)
+        except Exception as e:
+            print(f"Error updating repos: {e}")
             
     def create_issue(self, title, body, labels=None):
         """Create a new issue"""
@@ -164,3 +184,25 @@ class GitHubManager(QObject):
     def set_update_interval(self, interval):
         """Set update interval in seconds"""
         self.update_interval = max(60, interval)  
+
+    def authenticate(self):
+        """Authenticate with GitHub"""
+        token = self.settings.get('github_token')
+        username = self.settings.get('github_username')
+        
+        if not token or not username:
+            print("GitHub token or username not set in settings")
+            return False
+            
+        try:
+            print(f"Attempting to authenticate with GitHub as {username}")
+            self.github = Github(token)
+            # Verify token by getting user info
+            self.user = self.github.get_user()
+            print(f"Successfully authenticated as {self.user.login}")
+            return True
+        except Exception as e:
+            print(f"GitHub authentication error: {e}")
+            self.github = None
+            self.user = None
+            return False  

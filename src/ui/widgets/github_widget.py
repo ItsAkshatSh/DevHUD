@@ -1,6 +1,6 @@
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QPushButton, QFrame, QTabWidget, QMenu, QAction,
-                             QListWidget, QListWidgetItem, QProgressBar)
+                             QListWidget, QListWidgetItem)
 from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot
 from PyQt5.QtGui import QIcon
 
@@ -13,9 +13,16 @@ class GitHubWidget(QWidget):
         self.is_widget_mode = True
         
         # Connect signals
-        self.github_manager.activity_updated.connect(self.update_activity_list)
-        self.github_manager.issues_updated.connect(self.update_issues_list)
         self.github_manager.prs_updated.connect(self.update_prs_list)
+        self.github_manager.repos_updated.connect(self.update_repos_count)
+        
+        # Set window flags
+        self.setWindowFlags(
+            Qt.FramelessWindowHint |
+            Qt.WindowStaysOnTopHint |
+            Qt.Tool
+        )
+        self.setAttribute(Qt.WA_TranslucentBackground)
         
         # Initialize UI
         self.init_ui()
@@ -54,12 +61,7 @@ class GitHubWidget(QWidget):
         self.tab_widget.setObjectName("githubTabWidget")
         
         # Create tabs
-        self.activity_tab = self.create_activity_tab()
-        self.issues_tab = self.create_issues_tab()
         self.prs_tab = self.create_prs_tab()
-        
-        self.tab_widget.addTab(self.activity_tab, "Activity")
-        self.tab_widget.addTab(self.issues_tab, "Issues")
         self.tab_widget.addTab(self.prs_tab, "Pull Requests")
         
         self.main_layout.addWidget(self.tab_widget)
@@ -81,51 +83,6 @@ class GitHubWidget(QWidget):
         
         # Set initial mode
         self.set_widget_mode(True)
-        
-    def create_activity_tab(self):
-        """Create activity feed tab"""
-        tab = QWidget()
-        layout = QVBoxLayout(tab)
-        layout.setContentsMargins(10, 10, 10, 10)
-        layout.setSpacing(5)
-        
-        # Activity list
-        self.activity_list = QListWidget()
-        self.activity_list.setObjectName("activityList")
-        layout.addWidget(self.activity_list)
-        
-        # Refresh button
-        refresh_btn = QPushButton("Refresh")
-        refresh_btn.clicked.connect(self.refresh_activity)
-        layout.addWidget(refresh_btn)
-        
-        return tab
-        
-    def create_issues_tab(self):
-        """Create issues tab"""
-        tab = QWidget()
-        layout = QVBoxLayout(tab)
-        layout.setContentsMargins(10, 10, 10, 10)
-        layout.setSpacing(5)
-        
-        # Issues list
-        self.issues_list = QListWidget()
-        self.issues_list.setObjectName("issuesList")
-        layout.addWidget(self.issues_list)
-        
-        # Controls
-        controls_layout = QHBoxLayout()
-        
-        new_issue_btn = QPushButton("New Issue")
-        new_issue_btn.clicked.connect(self.create_new_issue)
-        refresh_btn = QPushButton("Refresh")
-        refresh_btn.clicked.connect(self.refresh_issues)
-        
-        controls_layout.addWidget(new_issue_btn)
-        controls_layout.addWidget(refresh_btn)
-        layout.addLayout(controls_layout)
-        
-        return tab
         
     def create_prs_tab(self):
         """Create pull requests tab"""
@@ -172,19 +129,21 @@ class GitHubWidget(QWidget):
         # Quick stats
         stats_layout = QHBoxLayout()
         
-        # Issues count
-        issues_layout = QVBoxLayout()
-        self.issues_count = QLabel("0")
-        issues_layout.addWidget(QLabel("Issues"))
-        issues_layout.addWidget(self.issues_count)
+        # Repositories count
+        repos_layout = QVBoxLayout()
+        self.repos_count = QLabel("0")
+        self.repos_count.setObjectName("countLabel")
+        repos_layout.addWidget(QLabel("Repos"))
+        repos_layout.addWidget(self.repos_count)
         
         # PRs count
         prs_layout = QVBoxLayout()
         self.prs_count = QLabel("0")
+        self.prs_count.setObjectName("countLabel")
         prs_layout.addWidget(QLabel("PRs"))
         prs_layout.addWidget(self.prs_count)
         
-        stats_layout.addLayout(issues_layout)
+        stats_layout.addLayout(repos_layout)
         stats_layout.addLayout(prs_layout)
         layout.addLayout(stats_layout)
         
@@ -226,26 +185,12 @@ class GitHubWidget(QWidget):
         
     def refresh_all(self):
         """Refresh all GitHub data"""
-        self.github_manager.update_activity()
-        self.github_manager.update_issues()
         self.github_manager.update_prs()
-        
-    def refresh_activity(self):
-        """Refresh activity feed"""
-        self.github_manager.update_activity()
-        
-    def refresh_issues(self):
-        """Refresh issues list"""
-        self.github_manager.update_issues()
+        self.github_manager.update_repos()
         
     def refresh_prs(self):
         """Refresh pull requests list"""
         self.github_manager.update_prs()
-        
-    def create_new_issue(self):
-        """Create new issue"""
-        # TODO: Implement with GitHub manager
-        pass
         
     def create_new_pr(self):
         """Create new pull request"""
@@ -308,7 +253,7 @@ class GitHubWidget(QWidget):
             QTabBar::tab {{
                 background: {colors['background']};
                 color: {colors['foreground']};
-                border: 1px solid {colors['border']};
+                border: 1px solid {colors['border']}
                 padding: 5px 10px;
                 border-top-left-radius: 4px;
                 border-top-right-radius: 4px;
@@ -329,6 +274,12 @@ class GitHubWidget(QWidget):
             QLabel#headerTitle {{
                 color: {colors['accent']};
                 font-weight: bold;
+            }}
+            
+            QLabel#countLabel {{
+                font-size: 18px;
+                font-weight: bold;
+                color: {colors['accent']};
             }}
         """)
         
@@ -355,25 +306,6 @@ class GitHubWidget(QWidget):
         menu.exec_(event.globalPos())
         
     @pyqtSlot(list)
-    def update_activity_list(self, activity):
-        """Update activity list with new data"""
-        self.activity_list.clear()
-        for event in activity:
-            item = QListWidgetItem()
-            item.setText(f"{event['type']} in {event['repo']} ({event['created_at']})")
-            self.activity_list.addItem(item)
-            
-    @pyqtSlot(list)
-    def update_issues_list(self, issues):
-        """Update issues list with new data"""
-        self.issues_list.clear()
-        self.issues_count.setText(str(len(issues)))
-        for issue in issues:
-            item = QListWidgetItem()
-            item.setText(f"#{issue['number']} {issue['title']} ({issue['repo']})")
-            self.issues_list.addItem(item)
-            
-    @pyqtSlot(list)
     def update_prs_list(self, prs):
         """Update PRs list with new data"""
         self.prs_list.clear()
@@ -381,4 +313,10 @@ class GitHubWidget(QWidget):
         for pr in prs:
             item = QListWidgetItem()
             item.setText(f"#{pr['number']} {pr['title']} ({pr['repo']})")
-            self.prs_list.addItem(item) 
+            item.setToolTip(f"State: {pr['state']}\nCreated: {pr['created_at']}\nUpdated: {pr['updated_at']}")
+            self.prs_list.addItem(item)
+            
+    @pyqtSlot(int)
+    def update_repos_count(self, count):
+        """Update repository count"""
+        self.repos_count.setText(str(count)) 

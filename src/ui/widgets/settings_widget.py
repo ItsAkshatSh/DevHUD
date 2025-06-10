@@ -68,7 +68,7 @@ class KeybindInputWidget(QPushButton):
             super().mousePressEvent(event)
 
 class SettingsWidget(QWidget):
-    settings_changed = pyqtSignal(dict)  # Signal when settings are changed
+    settings_changed = pyqtSignal()  # Signal for settings changes
     
     def __init__(self, settings, theme_engine, keybind_manager, parent=None):
         super().__init__(parent)
@@ -76,12 +76,11 @@ class SettingsWidget(QWidget):
         self.theme_engine = theme_engine
         self.keybind_manager = keybind_manager
         self.is_widget_mode = True
+        self.drag_position = None
+        self.has_unsaved_changes = False
         
         # Initialize UI
         self.init_ui()
-        
-        # Connect change signals
-        self.connect_change_signals()
         
     def init_ui(self):
         """Initialize the user interface"""
@@ -114,14 +113,12 @@ class SettingsWidget(QWidget):
         self.tab_widget.setObjectName("settingsTabWidget")
         
         # Create tabs
-        self.general_tab = self.create_general_tab()
         self.appearance_tab = self.create_appearance_tab()
-        self.keybinds_tab = self.create_keybinds_tab()
+        self.behavior_tab = self.create_behavior_tab()
         self.github_tab = self.create_github_tab()
         
-        self.tab_widget.addTab(self.general_tab, "General")
         self.tab_widget.addTab(self.appearance_tab, "Appearance")
-        self.tab_widget.addTab(self.keybinds_tab, "Keybinds")
+        self.tab_widget.addTab(self.behavior_tab, "Behavior")
         self.tab_widget.addTab(self.github_tab, "GitHub")
         
         self.main_layout.addWidget(self.tab_widget)
@@ -138,9 +135,10 @@ class SettingsWidget(QWidget):
         
         self.main_layout.addWidget(self.widget_view)
         
-        # Add save button
+        # Save button
         self.save_button = QPushButton("Save Changes")
         self.save_button.setObjectName("saveButton")
+        self.save_button.setEnabled(False) # Initially disabled
         self.save_button.clicked.connect(self.save_settings)
         self.main_layout.addWidget(self.save_button)
         
@@ -150,202 +148,187 @@ class SettingsWidget(QWidget):
         # Set initial mode
         self.set_widget_mode(True)
         
+        # Load settings
+        self.load_settings()
+        
+        # Connect change signals
+        self.connect_change_signals()
+        
     def connect_change_signals(self):
         """Connect signals for change detection"""
-        # General settings
-        self.start_minimized.stateChanged.connect(self.on_setting_changed)
-        self.start_with_system.stateChanged.connect(self.on_setting_changed)
-        self.stats_interval.valueChanged.connect(self.on_setting_changed)
-        
-        # Appearance settings
-        self.theme_selector.currentTextChanged.connect(self.on_setting_changed)
-        self.opacity_slider.valueChanged.connect(self.on_opacity_changed)
-        self.quick_opacity.valueChanged.connect(self.on_quick_opacity_changed)
-        
-        # Keybind settings
-        self.toggle_key.textChanged.connect(self.on_setting_changed)
-        self.focus_key.textChanged.connect(self.on_setting_changed)
-        self.clipboard_key.textChanged.connect(self.on_setting_changed)
-        
-        # GitHub settings
-        self.github_token.textChanged.connect(self.on_setting_changed)
-        self.github_username.textChanged.connect(self.on_setting_changed)
-        
+        # Theme changes
+        if hasattr(self, 'theme_combo'):
+            self.theme_combo.currentTextChanged.connect(self.on_setting_changed)
+        if hasattr(self, 'quick_theme_combo'):
+            self.quick_theme_combo.currentTextChanged.connect(self.on_setting_changed)
+            
+        # Opacity changes
+        if hasattr(self, 'opacity_slider'):
+            self.opacity_slider.valueChanged.connect(self.on_setting_changed)
+        if hasattr(self, 'quick_opacity_slider'):
+            self.quick_opacity_slider.valueChanged.connect(self.on_setting_changed)
+            
+        # Behavior changes
+        if hasattr(self, 'always_on_top'):
+            self.always_on_top.stateChanged.connect(self.on_setting_changed)
+        if hasattr(self, 'auto_hide'):
+            self.auto_hide.stateChanged.connect(self.on_setting_changed)
+            
+        # GitHub changes
+        if hasattr(self, 'github_username'):
+            self.github_username.textChanged.connect(self.on_setting_changed)
+        if hasattr(self, 'github_token'):
+            self.github_token.textChanged.connect(self.on_setting_changed)
+            
     def on_setting_changed(self):
-        """Handle setting changes"""
-        self.save_button.setEnabled(True)  # Enable save button when settings change
+        """Handle any setting change"""
+        self.has_unsaved_changes = True
+        self.save_button.setEnabled(True)
         
-    def on_opacity_changed(self, value):
-        """Handle opacity slider changes"""
-        self.opacity_label.setText(f"{value}%")
-        self.on_setting_changed()
+        # Update opacity value label if slider is the source of change
+        if self.sender() == self.opacity_slider or self.sender() == self.quick_opacity_slider:
+            if hasattr(self, 'opacity_value'):
+                self.opacity_value.setText(f"{self.opacity_slider.value()}%")
+            if hasattr(self, 'quick_opacity_label'):
+                self.quick_opacity_label.setText(f"{self.quick_opacity_slider.value()}%")
         
-    def on_quick_opacity_changed(self, value):
-        """Handle quick opacity slider changes"""
-        self.quick_opacity_label.setText(f"{value}%")
-        self.on_setting_changed()
+    def save_settings(self):
+        """Save all settings"""
+        if not self.has_unsaved_changes:
+            return
+            
+        # Save appearance settings
+        self.settings.set('theme', self.theme_combo.currentText())
+        self.settings.set('opacity', self.opacity_slider.value() / 100.0)
         
-    def create_general_tab(self):
-        """Create general settings tab"""
-        tab = QWidget()
-        layout = QVBoxLayout(tab)
+        # Save behavior settings
+        self.settings.set('always_on_top', self.always_on_top.isChecked())
+        self.settings.set('auto_hide', self.auto_hide.isChecked())
         
-        # Startup group
-        startup_group = QGroupBox("Startup")
-        startup_layout = QVBoxLayout()
+        # Save GitHub settings
+        self.settings.set('github_username', self.github_username.text())
+        self.settings.set('github_token', self.github_token.text())
         
-        self.start_minimized = QCheckBox("Start minimized")
-        self.start_with_system = QCheckBox("Start with system")
+        # Apply theme changes immediately
+        self.theme_engine.apply_theme(self.settings.get_theme())
         
-        startup_layout.addWidget(self.start_minimized)
-        startup_layout.addWidget(self.start_with_system)
-        startup_group.setLayout(startup_layout)
-        layout.addWidget(startup_group)
+        # Disable save button
+        self.save_button.setEnabled(False)
+        self.has_unsaved_changes = False
         
-        # Update interval group
-        update_group = QGroupBox("Update Intervals")
-        update_layout = QFormLayout()
-        
-        self.stats_interval = QSpinBox()
-        self.stats_interval.setRange(1, 60)
-        self.stats_interval.setSuffix(" sec")
-        
-        update_layout.addRow("Stats update interval:", self.stats_interval)
-        update_group.setLayout(update_layout)
-        layout.addWidget(update_group)
-        
-        layout.addStretch()
-        return tab
+        # Notify other widgets
+        self.settings_changed.emit()
         
     def create_appearance_tab(self):
         """Create appearance settings tab"""
         tab = QWidget()
         layout = QVBoxLayout(tab)
         
-        # Theme group
-        theme_group = QGroupBox("Theme")
-        theme_layout = QFormLayout()
+        # Theme selection
+        theme_layout = QHBoxLayout()
+        theme_layout.addWidget(QLabel("Theme:"))
+        self.theme_combo = QComboBox()
+        self.theme_combo.addItems(self.theme_engine.get_available_themes())
+        self.theme_combo.currentTextChanged.connect(self.on_setting_changed)
+        theme_layout.addWidget(self.theme_combo)
+        layout.addLayout(theme_layout)
         
-        self.theme_selector = QComboBox()
-        self.theme_selector.addItems(["Light", "Dark", "System"])
-        
-        theme_layout.addRow("Theme:", self.theme_selector)
-        theme_group.setLayout(theme_layout)
-        layout.addWidget(theme_group)
-        
-        # Opacity group
-        opacity_group = QGroupBox("Opacity")
-        opacity_layout = QVBoxLayout()
-        
-        # Create slider with label
-        slider_layout = QHBoxLayout()
+        # Opacity slider
+        opacity_layout = QHBoxLayout()
+        opacity_layout.addWidget(QLabel("Opacity:"))
         self.opacity_slider = QSlider(Qt.Horizontal)
         self.opacity_slider.setRange(20, 100)
-        self.opacity_slider.setValue(90)  # Default to 90%
-        self.opacity_slider.setTickPosition(QSlider.TicksBelow)
-        self.opacity_slider.setTickInterval(10)
-        
-        self.opacity_label = QLabel("90%")
-        self.opacity_label.setMinimumWidth(40)
-        self.opacity_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        
-        slider_layout.addWidget(self.opacity_slider)
-        slider_layout.addWidget(self.opacity_label)
-        
-        opacity_layout.addLayout(slider_layout)
-        opacity_group.setLayout(opacity_layout)
-        layout.addWidget(opacity_group)
+        self.opacity_slider.setValue(int(self.settings.get('opacity', 1.0) * 100))
+        self.opacity_slider.valueChanged.connect(self.on_setting_changed)
+        opacity_layout.addWidget(self.opacity_slider)
+        self.opacity_value = QLabel(f"{self.opacity_slider.value()}%")
+        opacity_layout.addWidget(self.opacity_value)
+        layout.addLayout(opacity_layout)
         
         layout.addStretch()
         return tab
         
-    def create_keybinds_tab(self):
-        """Create keybinds settings tab"""
+    def create_behavior_tab(self):
+        """Create behavior settings tab"""
         tab = QWidget()
         layout = QVBoxLayout(tab)
         
-        # Keybinds group
-        keybinds_group = QGroupBox("Global Hotkeys")
-        keybinds_layout = QFormLayout()
+        # Always on top
+        self.always_on_top = QCheckBox("Always on top")
+        self.always_on_top.setChecked(self.settings.get('always_on_top', False))
+        self.always_on_top.stateChanged.connect(self.on_setting_changed)
+        layout.addWidget(self.always_on_top)
         
-        self.toggle_key = QLineEdit()
-        self.focus_key = QLineEdit()
-        self.clipboard_key = QLineEdit()
-        
-        keybinds_layout.addRow("Toggle visibility:", self.toggle_key)
-        keybinds_layout.addRow("Start focus timer:", self.focus_key)
-        keybinds_layout.addRow("Show clipboard:", self.clipboard_key)
-        
-        keybinds_group.setLayout(keybinds_layout)
-        layout.addWidget(keybinds_group)
+        # Auto hide
+        self.auto_hide = QCheckBox("Auto hide when not focused")
+        self.auto_hide.setChecked(self.settings.get('auto_hide', False))
+        self.auto_hide.stateChanged.connect(self.on_setting_changed)
+        layout.addWidget(self.auto_hide)
         
         layout.addStretch()
         return tab
         
     def create_github_tab(self):
-        """Create GitHub integration settings tab"""
+        """Create GitHub settings tab"""
         tab = QWidget()
         layout = QVBoxLayout(tab)
         
-        # GitHub auth group
-        github_group = QGroupBox("GitHub Authentication")
-        github_layout = QFormLayout()
+        # GitHub username
+        username_layout = QHBoxLayout()
+        username_layout.addWidget(QLabel("GitHub Username:"))
+        self.github_username = QLineEdit()
+        self.github_username.setText(self.settings.get('github_username', ''))
+        self.github_username.textChanged.connect(self.on_setting_changed)
+        username_layout.addWidget(self.github_username)
+        layout.addLayout(username_layout)
         
+        # GitHub token
+        token_layout = QHBoxLayout()
+        token_layout.addWidget(QLabel("GitHub Token:"))
         self.github_token = QLineEdit()
         self.github_token.setEchoMode(QLineEdit.Password)
-        self.github_username = QLineEdit()
-        
-        github_layout.addRow("Username:", self.github_username)
-        github_layout.addRow("Access Token:", self.github_token)
-        
-        # Add help text
-        help_label = QLabel("Token is required to access private repositories and avoid rate limits.")
-        help_label.setWordWrap(True)
-        help_label.setStyleSheet("color: gray; font-size: 10px;")
-        github_layout.addRow("", help_label)
-        
-        github_group.setLayout(github_layout)
-        layout.addWidget(github_group)
+        self.github_token.setText(self.settings.get('github_token', ''))
+        self.github_token.textChanged.connect(self.on_setting_changed)
+        token_layout.addWidget(self.github_token)
+        layout.addLayout(token_layout)
         
         layout.addStretch()
         return tab
         
     def create_quick_settings(self):
-        """Create quick settings for widget mode"""
+        """Create quick settings display for widget mode"""
         self.quick_settings_frame = QFrame()
         self.quick_settings_frame.setObjectName("compactFrame")
         layout = QVBoxLayout(self.quick_settings_frame)
         layout.setContentsMargins(5, 5, 5, 5)
         layout.setSpacing(5)
         
-        # Quick theme toggle
+        # Theme selection
         theme_layout = QHBoxLayout()
-        theme_label = QLabel("Theme:")
-        self.quick_theme = QPushButton()
-        self.quick_theme.setObjectName("themeButton")
-        self.quick_theme.clicked.connect(self.toggle_theme)
-        
-        theme_layout.addWidget(theme_label)
-        theme_layout.addWidget(self.quick_theme)
+        theme_layout.addWidget(QLabel("Theme:"))
+        self.quick_theme_combo = QComboBox()
+        self.quick_theme_combo.addItems(["Dark", "Light", "System"])
+        self.quick_theme_combo.currentTextChanged.connect(self.on_setting_changed)
+        theme_layout.addWidget(self.quick_theme_combo)
         layout.addLayout(theme_layout)
         
-        # Quick opacity control
+        # Opacity
         opacity_layout = QHBoxLayout()
-        opacity_label = QLabel("Opacity:")
-        self.quick_opacity = QSlider(Qt.Horizontal)
-        self.quick_opacity.setRange(20, 100)
-        self.quick_opacity.setValue(90)
-        self.quick_opacity.setTickPosition(QSlider.TicksBelow)
-        self.quick_opacity.setTickInterval(10)
-        
-        self.quick_opacity_label = QLabel("90%")
-        self.quick_opacity_label.setMinimumWidth(40)
-        self.quick_opacity_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        
-        opacity_layout.addWidget(opacity_label)
-        opacity_layout.addWidget(self.quick_opacity)
+        opacity_layout.addWidget(QLabel("Opacity:"))
+        self.quick_opacity_slider = QSlider(Qt.Horizontal)
+        self.quick_opacity_slider.setRange(20, 100)
+        self.quick_opacity_slider.setValue(int(self.settings.get('opacity', 0.8) * 100))
+        self.quick_opacity_slider.valueChanged.connect(self.on_setting_changed)
+        opacity_layout.addWidget(self.quick_opacity_slider)
+        self.quick_opacity_label = QLabel(f"{self.quick_opacity_slider.value()}%")
         opacity_layout.addWidget(self.quick_opacity_label)
         layout.addLayout(opacity_layout)
+        
+        # Save button
+        self.save_button = QPushButton("Save Changes")
+        self.save_button.setEnabled(False)  # Initially disabled
+        self.save_button.clicked.connect(self.save_settings)
+        layout.addWidget(self.save_button)
         
     def set_widget_mode(self, enabled):
         """Switch between widget and window modes"""
@@ -378,65 +361,71 @@ class SettingsWidget(QWidget):
         """Toggle between widget and window modes"""
         self.set_widget_mode(not self.is_widget_mode)
         
-    def toggle_theme(self):
-        """Toggle between light and dark theme"""
-        current_theme = self.theme_selector.currentText()
-        if current_theme == "Light":
-            self.theme_selector.setCurrentText("Dark")
-        else:
-            self.theme_selector.setCurrentText("Light")
-        # Don't save immediately, wait for save button
+    def on_theme_changed(self, theme):
+        """Handle theme change"""
+        self.theme_engine.apply_theme(theme.lower())
+        self.apply_theme()  # Reapply theme to this widget
+        self.show()  # Ensure widget stays visible
         
-    def save_settings(self):
-        """Save current settings"""
-        settings = {
-            'general': {
-                'start_minimized': self.start_minimized.isChecked(),
-                'start_with_system': self.start_with_system.isChecked(),
-                'stats_interval': self.stats_interval.value()
-            },
-            'appearance': {
-                'theme': self.theme_selector.currentText(),
-                'opacity': self.opacity_slider.value()
-            },
-            'keybinds': {
-                'toggle_visibility': self.toggle_key.text(),
-                'focus_timer': self.focus_key.text(),
-                'clipboard': self.clipboard_key.text()
-            },
-            'github': {
-                'token': self.github_token.text(),
-                'username': self.github_username.text()
-            }
+    def on_font_size_changed(self, size):
+        """Handle font size change"""
+        sizes = {
+            "Small": 12,
+            "Medium": 14,
+            "Large": 16
         }
-        self.settings_changed.emit(settings)
-        self.save_button.setEnabled(False)  # Disable save button after saving
+        self.theme_engine.set_font_size(sizes[size])
+        
+    def on_opacity_changed(self, value):
+        """Handle opacity change"""
+        self.opacity_value.setText(f"{value}%")
+        opacity = value / 100.0
+        self.settings.set('opacity', opacity)
+        self.theme_engine.set_opacity(opacity)
+        
+    def on_quick_opacity_changed(self, value):
+        """Handle quick opacity change"""
+        self.quick_opacity_label.setText(f"{value}%")
+        opacity = value / 100.0
+        self.settings.set('opacity', opacity)
+        self.theme_engine.set_opacity(opacity)
+        
+    def on_github_username_changed(self, username):
+        """Handle GitHub username change"""
+        self.settings.set('github_username', username)
+        
+    def on_github_token_changed(self, token):
+        """Handle GitHub token change"""
+        self.settings.set('github_token', token)
         
     def load_settings(self):
-        """Load current settings"""
-        # Load general settings
-        self.start_minimized.setChecked(self.settings.get('start_minimized', False))
-        self.start_with_system.setChecked(self.settings.get('start_with_system', False))
-        self.stats_interval.setValue(self.settings.get('stats_interval', 1))
-        
+        """Load all settings"""
         # Load appearance settings
-        current_theme = self.settings.get('theme', 'System').capitalize()
-        self.theme_selector.setCurrentText(current_theme)
+        current_theme = self.settings.get('theme', 'dark').capitalize()
+        if hasattr(self, 'theme_combo'):
+            self.theme_combo.setCurrentText(current_theme)
+        if hasattr(self, 'quick_theme_combo'):
+            self.quick_theme_combo.setCurrentText(current_theme)
         
-        opacity = int(self.settings.get('opacity', 0.9) * 100)  # Convert decimal to percentage
-        self.opacity_slider.setValue(opacity)
-        self.opacity_label.setText(f"{opacity}%")
-        self.quick_opacity.setValue(opacity)
-        self.quick_opacity_label.setText(f"{opacity}%")
+        opacity = int(self.settings.get('opacity', 0.8) * 100)
+        if hasattr(self, 'opacity_slider'):
+            self.opacity_slider.setValue(opacity)
+            self.opacity_value.setText(f"{opacity}%")
+        if hasattr(self, 'quick_opacity_slider'):
+            self.quick_opacity_slider.setValue(opacity)
+            self.quick_opacity_label.setText(f"{opacity}%")
         
-        # Load keybind settings
-        self.toggle_key.setText(self.settings.get_keybind('toggle_visibility'))
-        self.focus_key.setText(self.settings.get_keybind('focus_timer'))
-        self.clipboard_key.setText(self.settings.get_keybind('clipboard'))
+        # Load behavior settings
+        if hasattr(self, 'always_on_top'):
+            self.always_on_top.setChecked(self.settings.get('always_on_top', True))
+        if hasattr(self, 'auto_hide'):
+            self.auto_hide.setChecked(self.settings.get('auto_hide', False))
         
         # Load GitHub settings
-        self.github_token.setText(self.settings.get('github_token', ''))
-        self.github_username.setText(self.settings.get('github_username', ''))
+        if hasattr(self, 'github_username'):
+            self.github_username.setText(self.settings.get('github_username', ''))
+        if hasattr(self, 'github_token'):
+            self.github_token.setText(self.settings.get('github_token', ''))
         
     def apply_theme(self):
         """Apply theme to the widget"""
@@ -554,8 +543,14 @@ class SettingsWidget(QWidget):
             
     def mouseMoveEvent(self, event):
         """Handle mouse move events for dragging"""
-        if event.buttons() & Qt.LeftButton:
+        if event.buttons() & Qt.LeftButton and self.drag_position is not None:
             self.move(event.globalPos() - self.drag_position)
+            event.accept()
+            
+    def mouseReleaseEvent(self, event):
+        """Handle mouse release events"""
+        if event.button() == Qt.LeftButton:
+            self.drag_position = None
             event.accept()
             
     def contextMenuEvent(self, event):

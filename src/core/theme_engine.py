@@ -1,11 +1,14 @@
 from PyQt5.QtGui import QColor, QPalette
 from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QApplication
 import json
 import os
 
 class ThemeEngine:
     def __init__(self, settings):
         self.settings = settings
+        self.font_size = self.settings.get('font_size', 14)
+        self.opacity = self.settings.get('opacity', 0.8)
         self.themes = self._load_themes()
         self.current_theme = self.settings.get_theme()
         
@@ -32,10 +35,10 @@ class ThemeEngine:
                 'border_color': '#333333',
                 'hover_color': '#2D2D2D',
                 'font_family': 'Segoe UI',
-                'font_size': 12,
+                'font_size': self.font_size,
                 'border_radius': 4,
                 'padding': 8,
-                'opacity': 0.9
+                'opacity': self.opacity
             },
             'light': {
                 'name': 'Light Theme',
@@ -57,10 +60,10 @@ class ThemeEngine:
                 'border_color': '#CCCCCC',
                 'hover_color': '#F0F0F0',
                 'font_family': 'Segoe UI',
-                'font_size': 12,
+                'font_size': self.font_size,
                 'border_radius': 4,
                 'padding': 8,
-                'opacity': 0.9
+                'opacity': self.opacity
             },
             'cyber': {
                 'name': 'Cyber Theme',
@@ -82,10 +85,10 @@ class ThemeEngine:
                 'border_color': '#00FF00',
                 'hover_color': '#1A1A1A',
                 'font_family': 'Consolas',
-                'font_size': 12,
+                'font_size': self.font_size,
                 'border_radius': 0,
                 'padding': 8,
-                'opacity': 0.9
+                'opacity': self.opacity
             }
         }
         return themes
@@ -104,6 +107,11 @@ class ThemeEngine:
         if theme_name in self.themes:
             self.current_theme = theme_name
             self.settings.set_theme(theme_name)
+            
+            # Update system theme if needed
+            if theme_name == 'system':
+                self.update_system_theme()
+            
             return True
         return False
         
@@ -289,6 +297,30 @@ class ThemeEngine:
             
     def get_available_themes(self):
         """Get list of available themes"""
-        return list(self.themes.keys()) 
-    
+        return list(self.themes.keys())
+        
+    def update_system_theme(self):
+        """Update theme based on system settings"""
+        # TODO: Implement system theme detection
+        pass
+        
+    def set_font_size(self, size):
+        """Set the font size for the current theme"""
+        self.font_size = size
+        self.settings.set('font_size', size)
+        
+        # Update font size in all themes
+        for theme in self.themes.values():
+            theme['font_size'] = size
+            
+    def set_opacity(self, opacity):
+        """Set the opacity for the application"""
+        self.opacity = opacity
+        self.settings.set('opacity', opacity)
+        
+        # Apply opacity to all windows
+        for window in QApplication.topLevelWidgets():
+            if hasattr(window, 'setWindowOpacity'):
+                window.setWindowOpacity(opacity)
+            
     

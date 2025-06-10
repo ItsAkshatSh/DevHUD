@@ -32,14 +32,27 @@ class ClipboardManager(QObject):
     def _monitor_loop(self):
         """Main monitoring loop"""
         while self.running:
-            current_content = pyperclip.paste()
-            
-            # Only process if content has changed and is not empty
-            if current_content and current_content != self.last_content:
-                self.last_content = current_content
-                self.history.append(current_content)
-                self.clipboard_changed.emit(current_content)
+            try:
+                current_content = None
+                # Try to paste, with retries for clipboard access errors
+                for _ in range(3): # Retry up to 3 times
+                    try:
+                        current_content = pyperclip.paste()
+                        break # If successful, break out of retry loop
+                    except pyperclip.PyperclipWindowsException as e:
+                        print(f"Clipboard access error, retrying: {e}")
+                        time.sleep(0.1) # Wait a bit before retrying
                 
+                if current_content is None: # If all retries failed
+                    raise pyperclip.PyperclipWindowsException("Failed to access clipboard after multiple retries.")
+
+                # Only process if content has changed and is not empty
+                if current_content and current_content != self.last_content:
+                    self.last_content = current_content
+                    self.history.append(current_content)
+                    self.clipboard_changed.emit(current_content)
+            except Exception as e:
+                print(f"Error in clipboard monitoring loop: {e}")
             time.sleep(0.5) 
             
     def get_history(self):
