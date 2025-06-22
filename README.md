@@ -30,13 +30,6 @@ Run the application:
 python src/main.py
 ```
 
-## Configuration
-
-The application can be configured through the settings interface. Configuration files are stored in:
-- Windows: `%APPDATA%/NerdHUD/`
-- macOS: `~/Library/Application Support/NerdHUD/`
-- Linux: `~/.config/NerdHUD/`
-
 ## Development
 
 This project uses PyQt5 for the UI framework and follows a modular architecture for easy extension.
