@@ -545,6 +545,8 @@ class SettingsWidget(QWidget):
         """Handle mouse move events for dragging"""
         if event.buttons() & Qt.LeftButton and self.drag_position is not None:
             self.move(event.globalPos() - self.drag_position)
+            # Save position when widget is moved
+            self.settings.set_widget_position('settings', self.x(), self.y())
             event.accept()
             
     def mouseReleaseEvent(self, event):

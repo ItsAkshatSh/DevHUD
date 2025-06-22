@@ -1,9 +1,12 @@
 from PyQt5.QtCore import QSettings
 import json
 import os
+from PyQt5.QtCore import QObject, pyqtSignal
 
-class Settings:
+class Settings(QObject):
+    settings_changed = pyqtSignal()
     def __init__(self):
+        super().__init__()
         self.settings_file = os.path.join(os.path.expanduser("~"), ".nerdhud", "settings.json")
         self.settings = self._load_settings()
         
@@ -58,6 +61,7 @@ class Settings:
         """Set a setting value"""
         self.settings[key] = value
         self._save_settings()
+        self.settings_changed.emit()
         
     def get_theme(self):
         """Get current theme"""
@@ -90,6 +94,7 @@ class Settings:
             self.settings['widget_positions'] = {}
         self.settings['widget_positions'][widget_name] = [x, y]
         self._save_settings()
+        self.settings_changed.emit()
         
     def get_setting(self, key, default=None):
         """Get a setting value by key (supports nested keys with dots)"""
@@ -110,17 +115,22 @@ class Settings:
                 target = target[k]
             target[keys[-1]] = value
             self._save_settings()
+            self.settings_changed.emit()
             return True
         except (KeyError, TypeError):
             return False
             
     def set_theme(self, theme_name):
         """Set current theme"""
-        return self.set('theme', theme_name)
+        result = self.set('theme', theme_name)
+        self.settings_changed.emit()
+        return result
         
     def set_opacity(self, opacity):
         """Set window opacity"""
-        return self.set('opacity', max(0.1, min(1.0, opacity)))
+        result = self.set('opacity', max(0.1, min(1.0, opacity)))
+        self.settings_changed.emit()
+        return result
         
     def set_enabled(self, widget_name, enabled):
         """Enable or disable a widget"""
@@ -128,10 +138,12 @@ class Settings:
             self.settings['enabled_widgets'] = {}
         self.settings['enabled_widgets'][widget_name] = enabled
         self._save_settings()
+        self.settings_changed.emit()
         
     def set_keybind(self, action, key_combination):
         """Set keybind for an action"""
         if 'keybinds' not in self.settings:
             self.settings['keybinds'] = {}
         self.settings['keybinds'][action] = key_combination
-        self._save_settings() 
+        self._save_settings()
+        self.settings_changed.emit() 

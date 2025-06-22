@@ -1,4 +1,4 @@
-# NerdHUD - Cross-Platform Developer's Heads-Up Display
+# DevHUD - Cross-Platform Developer's Heads-Up Display
 
 A lightweight, cross-platform desktop application that displays system information and productivity tools on your desktop wallpaper, similar to Rainmeter.
 
@@ -8,9 +8,8 @@ A lightweight, cross-platform desktop application that displays system informati
 - System Stats: Real-time CPU, RAM, GPU monitoring
 - Clipboard History: Track and manage recent clipboard entries
 - Focus Timer: Pomodoro-style productivity timer
-- Custom Keybinds: System-wide keyboard shortcuts
 - Modern UI: Cyber-themed interface with neon accents
-- Cross-Platform: Works on Windows, macOS, and Linux
+- Music player: Allows user to seamlessly
 
 ## Installation
 

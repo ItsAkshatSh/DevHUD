@@ -7,6 +7,7 @@ from .widgets.clipboard_widget import ClipboardWidget
 from .widgets.focus_timer_widget import FocusTimerWidget
 from .widgets.settings_widget import SettingsWidget
 from .widgets.github_widget import GitHubWidget
+from ui.widgets.spotify_widget import SpotifyWidget
 
 class MainWindow(QMainWindow):
     def __init__(self, desktop_integration, window_manager, system_stats,
@@ -25,7 +26,11 @@ class MainWindow(QMainWindow):
         self.github_manager = github_manager
         
         # Initialize widgets list
-        self.widgets = []
+        self.widgets = {}
+        
+        # Apply initial opacity from settings
+        opacity = self.settings.get_opacity()
+        self.setWindowOpacity(opacity)
         
         self.init_ui()
         
@@ -34,6 +39,108 @@ class MainWindow(QMainWindow):
         self.setup_keybinds()
         
         self.start_services()
+        
+        # Initialize Spotify widget
+        self.spotify_widget = SpotifyWidget(
+            self.desktop_integration,
+            self.theme_engine,
+            self.settings
+        )
+        # Get saved position or use default
+        x, y = self.settings.get_widget_position('spotify')
+        self.spotify_widget.move(x, y)
+        self.spotify_widget.show()
+        self.spotify_widget.setWindowOpacity(self.settings.get_opacity())
+        self.widgets['spotify_widget'] = self.spotify_widget
+        
+        # Initialize other widgets
+        if self.settings.is_enabled('system_stats'):
+            self.stats_widget = SystemStatsWidget(
+                self.system_stats,
+                self.theme_engine,
+                self.settings
+            )
+            x, y = self.settings.get_widget_position('system_stats')
+            self.stats_widget.move(x, y)
+            self.stats_widget.setWindowFlags(
+                Qt.FramelessWindowHint |
+                Qt.WindowStaysOnBottomHint |
+                Qt.Tool
+            )
+            self.stats_widget.setAttribute(Qt.WA_TranslucentBackground)
+            self.stats_widget.show()
+            self.stats_widget.setWindowOpacity(self.settings.get_opacity())
+            self.widgets['stats_widget'] = self.stats_widget
+            
+        if self.settings.is_enabled('clipboard'):
+            self.clipboard_widget = ClipboardWidget(
+                self.clipboard_manager,
+                self.theme_engine,
+                self.settings
+            )
+            x, y = self.settings.get_widget_position('clipboard')
+            self.clipboard_widget.move(x, y)
+            self.clipboard_widget.setWindowFlags(
+                Qt.FramelessWindowHint |
+                Qt.WindowStaysOnBottomHint |
+                Qt.Tool
+            )
+            self.clipboard_widget.setAttribute(Qt.WA_TranslucentBackground)
+            self.clipboard_widget.show()
+            self.clipboard_widget.setWindowOpacity(self.settings.get_opacity())
+            self.widgets['clipboard_widget'] = self.clipboard_widget
+            
+        if self.settings.is_enabled('focus_timer'):
+            self.timer_widget = FocusTimerWidget(
+                self.focus_timer,
+                self.theme_engine,
+                self.settings
+            )
+            x, y = self.settings.get_widget_position('focus_timer')
+            self.timer_widget.move(x, y)
+            self.timer_widget.setWindowFlags(
+                Qt.FramelessWindowHint |
+                Qt.WindowStaysOnBottomHint |
+                Qt.Tool
+            )
+            self.timer_widget.setAttribute(Qt.WA_TranslucentBackground)
+            self.timer_widget.show()
+            self.timer_widget.setWindowOpacity(self.settings.get_opacity())
+            self.widgets['timer_widget'] = self.timer_widget
+            
+        self.settings_widget = SettingsWidget(
+            self.settings,
+            self.theme_engine,
+            self.keybind_manager
+        )
+        x, y = self.settings.get_widget_position('settings')
+        self.settings_widget.move(x, y)
+        self.settings_widget.hide()
+        self.settings_widget.setWindowOpacity(self.settings.get_opacity())
+        self.widgets['settings_widget'] = self.settings_widget
+        self.settings_widget.settings_changed.connect(self.on_settings_changed)
+        
+        # GitHub Widget
+        if self.settings.is_enabled('github'):
+            self.github_widget = GitHubWidget(
+                self.github_manager,
+                self.theme_engine,
+                self.settings
+            )
+            x, y = self.settings.get_widget_position('github')
+            self.github_widget.move(x, y)
+            self.github_widget.setWindowFlags(
+                Qt.FramelessWindowHint |
+                Qt.WindowStaysOnBottomHint |
+                Qt.Tool
+            )
+            self.github_widget.setAttribute(Qt.WA_TranslucentBackground)
+            self.github_widget.show()
+            self.github_widget.setWindowOpacity(self.settings.get_opacity())
+            self.widgets['github_widget'] = self.github_widget
+            
+        # Start GitHub monitoring after all widgets are initialized
+        self.github_manager.start_monitoring()
         
     def init_ui(self):
         """Initialize the user interface"""
@@ -74,7 +181,8 @@ class MainWindow(QMainWindow):
             )
             self.stats_widget.setAttribute(Qt.WA_TranslucentBackground)
             self.stats_widget.show()
-            self.widgets.append(self.stats_widget)
+            self.stats_widget.setWindowOpacity(self.settings.get_opacity())
+            self.widgets['stats_widget'] = self.stats_widget
             
         if self.settings.is_enabled('clipboard'):
             self.clipboard_widget = ClipboardWidget(
@@ -91,7 +199,8 @@ class MainWindow(QMainWindow):
             )
             self.clipboard_widget.setAttribute(Qt.WA_TranslucentBackground)
             self.clipboard_widget.show()
-            self.widgets.append(self.clipboard_widget)
+            self.clipboard_widget.setWindowOpacity(self.settings.get_opacity())
+            self.widgets['clipboard_widget'] = self.clipboard_widget
             
         if self.settings.is_enabled('focus_timer'):
             self.timer_widget = FocusTimerWidget(
@@ -108,7 +217,8 @@ class MainWindow(QMainWindow):
             )
             self.timer_widget.setAttribute(Qt.WA_TranslucentBackground)
             self.timer_widget.show()
-            self.widgets.append(self.timer_widget)
+            self.timer_widget.setWindowOpacity(self.settings.get_opacity())
+            self.widgets['timer_widget'] = self.timer_widget
             
         self.settings_widget = SettingsWidget(
             self.settings,
@@ -118,7 +228,8 @@ class MainWindow(QMainWindow):
         x, y = self.settings.get_widget_position('settings')
         self.settings_widget.move(x, y)
         self.settings_widget.hide()
-        self.widgets.append(self.settings_widget)
+        self.settings_widget.setWindowOpacity(self.settings.get_opacity())
+        self.widgets['settings_widget'] = self.settings_widget
         self.settings_widget.settings_changed.connect(self.on_settings_changed)
         
         # GitHub Widget
@@ -137,7 +248,8 @@ class MainWindow(QMainWindow):
             )
             self.github_widget.setAttribute(Qt.WA_TranslucentBackground)
             self.github_widget.show()
-            self.widgets.append(self.github_widget)
+            self.github_widget.setWindowOpacity(self.settings.get_opacity())
+            self.widgets['github_widget'] = self.github_widget
             
         # Start GitHub monitoring after all widgets are initialized
         self.github_manager.start_monitoring()
@@ -233,14 +345,14 @@ class MainWindow(QMainWindow):
         # Set window opacity for all widgets
         opacity = self.settings.get_opacity()
         self.setWindowOpacity(opacity)
-        for widget in self.widgets:
-            if widget != self.settings_widget:  # Don't set opacity for settings widget
-                widget.setWindowOpacity(opacity)
+        for widget_name, widget in self.widgets.items():
+            widget.setWindowOpacity(opacity)
+            widget.apply_theme()
                 
     def restore_window_state(self):
         """Restore window position and state"""
         # Load widget positions from settings
-        for widget in self.widgets:
+        for widget in self.widgets.values():
             name = widget.__class__.__name__.lower()
             x, y = self.settings.get_widget_position(name)
             widget.move(x, y)
@@ -248,24 +360,24 @@ class MainWindow(QMainWindow):
     def save_window_state(self):
         """Save window position and state"""
         # Save widget positions
-        for widget in self.widgets:
+        for widget in self.widgets.values():
             name = widget.__class__.__name__.lower()
             self.settings.set_widget_position(name, widget.x(), widget.y())
             
     def show_all(self):
         """Show all widgets"""
-        for widget in self.widgets:
+        for widget in self.widgets.values():
             if widget != self.settings_widget:  # Don't show settings automatically
                 widget.show()
                 
     def hide_all(self):
         """Hide all widgets"""
-        for widget in self.widgets:
+        for widget in self.widgets.values():
             widget.hide()
             
     def toggle_visibility(self):
         """Toggle visibility of all widgets"""
-        if any(widget.isVisible() for widget in self.widgets if widget != self.settings_widget):
+        if any(widget.isVisible() for widget in self.widgets.values() if widget != self.settings_widget):
             self.hide_all()
         else:
             self.show_all()

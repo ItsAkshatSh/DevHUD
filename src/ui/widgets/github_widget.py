@@ -293,6 +293,8 @@ class GitHubWidget(QWidget):
         """Handle mouse move events for dragging"""
         if event.buttons() & Qt.LeftButton:
             self.move(event.globalPos() - self.drag_position)
+            # Save position when widget is moved
+            self.settings.set_widget_position('github', self.x(), self.y())
             event.accept()
             
     def contextMenuEvent(self, event):
