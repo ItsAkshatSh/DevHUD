@@ -11,6 +11,9 @@ A lightweight, cross-platform desktop application that displays system informati
 - Modern UI: Cyber-themed interface with neon accents
 - Music player: Allows user to seamlessly
 
+![image](https://github.com/user-attachments/assets/c83b882a-4945-47fd-bad0-0be7ee72ece6)
+
+
 ## Installation
 
 1. Ensure you have Python 3.8+ installed
